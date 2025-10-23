@@ -1,0 +1,1868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flight Schedule Gantt Chart</title>
+    <style>
+        /* All the CSS styles remain the same */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f5f7fa;
+            color: #333;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        header {
+            background-color: #1a3a6c;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .date-navigation {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        button {
+            background-color: #2d5ba3;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        button:hover {
+            background-color: #1e3f7a;
+        }
+        
+        .current-date {
+            font-weight: 600;
+            min-width: 120px;
+            text-align: center;
+        }
+        
+        .gantt-container {
+            position: relative;
+            overflow-x: auto;
+            overflow-y: hidden;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .gantt-header {
+            display: flex;
+            background-color: #f0f2f5;
+            border-bottom: 1px solid #e0e0e0;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        .aircraft-column {
+            width: 150px;
+            min-width: 150px;
+            padding: 10px;
+            font-weight: 600;
+            background-color: #f0f2f5;
+            border-right: 1px solid #e0e0e0;
+            position: sticky;
+            left: 0;
+            z-index: 5;
+        }
+        
+        .timeline-columns {
+            display: flex;
+            min-width: 100%;
+        }
+        
+        .timeline-column {
+            width: 60px;
+            min-width: 60px;
+            padding: 10px 5px;
+            text-align: center;
+            font-size: 0.8rem;
+            border-right: 1px solid #e0e0e0;
+        }
+        
+        .gantt-body {
+            display: flex;
+        }
+        
+        .aircraft-list {
+            width: 150px;
+            min-width: 150px;
+        }
+        
+        .aircraft-item {
+            padding: 15px 10px;
+            border-bottom: 1px solid #e0e0e0;
+            background-color: white;
+            height: 80px;
+            display: flex;
+            align-items: center;
+            font-weight: 500;
+            position: relative;
+        }
+        
+        .timeline {
+            flex: 1;
+            position: relative;
+            min-width: calc(24 * 60px); /* 24 hours */
+        }
+        
+        .flight-bar {
+            position: absolute;
+            height: 40px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: move;
+            overflow: hidden;
+            transition: all 0.2s;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+            background-color: #3498db;
+            top: 30px;
+        }
+        
+        .flight-bar:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
+        }
+        
+        .flight-bar.swapping {
+            background-color: #e74c3c;
+            z-index: 100;
+        }
+        
+        .flight-info {
+            padding: 0 8px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            z-index: 2;
+            position: relative;
+        }
+        
+        .flight-origin-dest {
+            font-size: 0.7rem;
+            opacity: 0.9;
+        }
+        
+        .status-bar {
+            position: absolute;
+            height: 8px;
+            border-radius: 2px;
+            cursor: pointer;
+            z-index: 5;
+            top: 10px;
+            background-color: #95a5a6;
+            transition: all 0.2s;
+        }
+        
+        .status-bar:hover {
+            height: 10px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+        
+        .status-bar.active {
+            background: linear-gradient(90deg, #2ecc71 0%, #f1c40f 50%, #e74c3c 100%);
+        }
+        
+        .time-marker {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background-color: rgba(0, 0, 0, 0.1);
+        }
+        
+        .time-marker.current-time {
+            background-color: #e74c3c;
+            width: 2px;
+            z-index: 2;
+        }
+        
+        .time-label {
+            position: absolute;
+            top: -20px;
+            transform: translateX(-50%);
+            font-size: 0.7rem;
+            color: #666;
+        }
+        
+        .instructions {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        
+        .instructions h3 {
+            margin-bottom: 10px;
+            color: #1a3a6c;
+        }
+        
+        .instructions ul {
+            margin-left: 20px;
+        }
+        
+        .instructions li {
+            margin-bottom: 5px;
+        }
+        
+        .drop-zone {
+            background-color: rgba(46, 204, 113, 0.1);
+            border: 2px dashed #2ecc71;
+        }
+        
+        .flight-details {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: white;
+            padding: 15px;
+            border-radius: 6px;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+            max-width: 300px;
+            display: none;
+            z-index: 100;
+        }
+        
+        .flight-details h3 {
+            margin-bottom: 10px;
+            color: #1a3a6c;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+        
+        .flight-details p {
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+        
+        .close-details {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            color: #666;
+        }
+        
+        .swap-indicator {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            font-weight: 600;
+            z-index: 1000;
+            display: none;
+        }
+        
+        .status-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            width: 450px;
+            display: none;
+        }
+        
+        .status-modal h3 {
+            margin-bottom: 15px;
+            color: #1a3a6c;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        
+        .status-form {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 10px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        
+        .time-input {
+            font-family: monospace;
+        }
+        
+        .form-buttons {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .status-legend {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+            font-size: 0.8rem;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 4px;
+            border-radius: 2px;
+        }
+        
+        .legend-ontime {
+            background-color: #2ecc71;
+        }
+        
+        .legend-delayed {
+            background-color: #f1c40f;
+        }
+        
+        .legend-cancelled {
+            background-color: #e74c3c;
+        }
+        
+        .block-hour-info {
+            grid-column: 1 / -1;
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+        }
+        
+        .block-hour-info p {
+            margin-bottom: 5px;
+        }
+        
+        .save-button {
+            background-color: #27ae60;
+        }
+        
+        .save-button:hover {
+            background-color: #219653;
+        }
+        
+        .reset-button {
+            background-color: #e74c3c;
+        }
+        
+        .reset-button:hover {
+            background-color: #c0392b;
+        }
+
+        .pax-loading-bar {
+            position: absolute;
+            height: 100%;
+            top: 0;
+            left: 0;
+            transition: width 0.3s ease;
+            z-index: 1;
+        }
+
+        .pax-loading-green {
+            background: linear-gradient(90deg, rgba(46, 204, 113, 0.7), rgba(46, 204, 113, 0.9));
+        }
+
+        .pax-loading-yellow {
+            background: linear-gradient(90deg, rgba(241, 196, 15, 0.7), rgba(241, 196, 15, 0.9));
+        }
+
+        .pax-loading-red {
+            background: linear-gradient(90deg, rgba(231, 76, 60, 0.7), rgba(231, 76, 60, 0.9));
+        }
+
+        .pax-info {
+            position: absolute;
+            bottom: 2px;
+            right: 5px;
+            font-size: 0.6rem;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 1px 3px;
+            border-radius: 2px;
+            z-index: 2;
+        }
+        
+        /* New styles for ETD popup */
+        .etd-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            width: 300px;
+            display: none;
+        }
+        
+        .etd-popup h3 {
+            margin-bottom: 15px;
+            color: #e74c3c;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        
+        .etd-form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .etd-form-group {
+            margin-bottom: 10px;
+        }
+        
+        .etd-form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        
+        .etd-form-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        
+        .etd-form-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .flight-bar.pink {
+            background-color: #e91e63;
+        }
+        
+        .eta-display {
+            font-size: 0.65rem;
+            margin-top: 2px;
+            opacity: 0.9;
+        }
+
+        /* Firebase controls */
+        .firebase-controls {
+            display: flex;
+            gap: 10px;
+            margin-left: 15px;
+        }
+
+        .firebase-button {
+            background-color: #ffa000;
+        }
+
+        .firebase-button:hover {
+            background-color: #ff8f00;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Flight Schedule Gantt Chart</h1>
+            <div class="controls">
+                <div class="date-navigation">
+                    <button id="prev-day">Previous Day</button>
+                    <div class="current-date" id="current-date">October 23, 2025</div>
+                    <button id="next-day">Next Day</button>
+                </div>
+                <div class="firebase-controls">
+                    <button id="save-to-firebase" class="firebase-button">Save to Cloud</button>
+                    <button id="load-from-firebase" class="firebase-button">Load from Cloud</button>
+                </div>
+                <button id="reset-times" class="reset-button">Reset Times</button>
+                <button id="save-html" class="save-button">Save HTML</button>
+            </div>
+        </header>
+        
+        <div class="gantt-container">
+            <div class="gantt-header">
+                <div class="aircraft-column">Aircraft</div>
+                <div class="timeline-columns" id="timeline-header">
+                    <!-- Timeline headers will be generated by JavaScript -->
+                </div>
+            </div>
+            
+            <div class="gantt-body">
+                <div class="aircraft-list" id="aircraft-list">
+                    <!-- Aircraft list will be generated by JavaScript -->
+                </div>
+                
+                <div class="timeline" id="timeline">
+                    <!-- Flight bars will be generated by JavaScript -->
+                </div>
+            </div>
+        </div>
+        
+        <div class="status-legend">
+            <div class="legend-item">
+                <div class="legend-color legend-ontime"></div>
+                <span>On Time</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color legend-delayed"></div>
+                <span>Delayed</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color legend-cancelled"></div>
+                <span>Cancelled</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #3498db"></div>
+                <span>Pax Loading: High (67-100%)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #f1c40f"></div>
+                <span>Pax Loading: Medium (34-66%)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #e74c3c"></div>
+                <span>Pax Loading: Low (0-33%)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background-color: #e91e63"></div>
+                <span>ETD Adjusted</span>
+            </div>
+        </div>
+        
+        <div class="instructions">
+            <h3>How to Use</h3>
+            <ul>
+                <li>Scroll horizontally to view different time periods</li>
+                <li>Click on a flight to view details</li>
+                <li>Click on the thin status bar above each flight to input operational times</li>
+                <li>When OUT time is entered, status bar starts at OUT time and spans block hours</li>
+                <li>Flight bars show scheduled times, status bars show actual progress</li>
+                <li>Only flights on the current date show status changes</li>
+                <li>Drag and drop flights between aircraft to swap assignments</li>
+                <li>Use the date navigation buttons to view different days</li>
+                <li>Click "Reset Times" to clear all status data for the current date</li>
+                <li>Click "Reset This Flight" in status modal to clear only current flight's data</li>
+                <li>Click "Save HTML" to download the current state with all changes across all dates</li>
+                <li>Click on a flight bar to set ETD and move the schedule bar</li>
+                <li>When ETD is set, the ETA is automatically calculated and displayed</li>
+                <li>Use "Save to Cloud" and "Load from Cloud" to backup and restore your data</li>
+            </ul>
+        </div>
+        
+        <div class="flight-details" id="flight-details">
+            <button class="close-details">&times;</button>
+            <h3>Flight Details</h3>
+            <p><strong>Flight:</strong> <span id="detail-flight"></span></p>
+            <p><strong>Aircraft:</strong> <span id="detail-aircraft"></span></p>
+            <p><strong>Origin:</strong> <span id="detail-origin"></span></p>
+            <p><strong>Destination:</strong> <span id="detail-dest"></span></p>
+            <p><strong>STD:</strong> <span id="detail-std"></span></p>
+            <p><strong>STA:</strong> <span id="detail-sta"></span></p>
+            <p><strong>ETD:</strong> <span id="detail-etd"></span></p>
+            <p><strong>ETA:</strong> <span id="detail-eta"></span></p>
+            <p><strong>Date:</strong> <span id="detail-date"></span></p>
+            <p><strong>Pax Loading:</strong> <span id="detail-pax"></span></p>
+        </div>
+        
+        <div class="swap-indicator" id="swap-indicator">Swap Flights</div>
+        
+        <div class="status-modal" id="status-modal">
+            <h3>Update Flight Status</h3>
+            <div class="block-hour-info">
+                <p><strong>Note:</strong> When OUT time is entered, status bar starts at OUT time and spans block hours.</p>
+                <p>All times are in 24-hour format (e.g., 00:00, 14:30, 23:45)</p>
+                <p>Changes only apply to the specific flight on the current date</p>
+            </div>
+            <form class="status-form" id="status-form">
+                <div class="form-group">
+                    <label for="door-close">Door Close Time</label>
+                    <input type="text" id="door-close" class="time-input" placeholder="HH:MM" pattern="[0-2][0-9]:[0-5][0-9]" maxlength="5">
+                </div>
+                <div class="form-group">
+                    <label for="out-time">OUT Time</label>
+                    <input type="text" id="out-time" class="time-input" placeholder="HH:MM" pattern="[0-2][0-9]:[0-5][0-9]" maxlength="5">
+                </div>
+                <div class="form-group">
+                    <label for="off-time">OFF Time</label>
+                    <input type="text" id="off-time" class="time-input" placeholder="HH:MM" pattern="[0-2][0-9]:[0-5][0-9]" maxlength="5">
+                </div>
+                <div class="form-group">
+                    <label for="on-time">ON Time</label>
+                    <input type="text" id="on-time" class="time-input" placeholder="HH:MM" pattern="[0-2][0-9]:[0-5][0-9]" maxlength="5">
+                </div>
+                <div class="form-group">
+                    <label for="in-time">IN Time</label>
+                    <input type="text" id="in-time" class="time-input" placeholder="HH:MM" pattern="[0-2][0-9]:[0-5][0-9]" maxlength="5">
+                </div>
+                <div class="form-group">
+                    <label for="door-open">Door Open Time</label>
+                    <input type="text" id="door-open" class="time-input" placeholder="HH:MM" pattern="[0-2][0-9]:[0-5][0-9]" maxlength="5">
+                </div>
+                <div class="form-group">
+                    <label for="bay">Bay</label>
+                    <input type="text" id="bay" placeholder="Enter bay number">
+                </div>
+                <div class="form-group">
+                    <label for="block-hours">Block Hours</label>
+                    <input type="number" id="block-hours" step="0.1" placeholder="e.g., 1.5" value="1.0">
+                </div>
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    <label for="pax-loading">Pax Loading (0-189)</label>
+                    <input type="number" id="pax-loading" min="0" max="189" placeholder="Number of passengers">
+                </div>
+                <div class="form-buttons">
+                    <button type="button" id="reset-this-flight" class="reset-button">Reset This Flight</button>
+                    <button type="button" id="cancel-status">Cancel</button>
+                    <button type="submit" id="save-status">Save</button>
+                </div>
+            </form>
+        </div>
+        
+        <!-- New ETD Popup -->
+        <div class="etd-popup" id="etd-popup">
+            <h3>ETD</h3>
+            <form class="etd-form" id="etd-form">
+                <div class="etd-form-group">
+                    <label for="etd-time">ETD Time (HH:MM)</label>
+                    <input type="text" id="etd-time" class="time-input" placeholder="HH:MM" pattern="[0-2][0-9]:[0-5][0-9]" maxlength="5">
+                </div>
+                <div class="etd-form-group">
+                    <label for="etd-block-hours">Block Hours</label>
+                    <input type="number" id="etd-block-hours" step="0.1" placeholder="e.g., 1.5" value="1.0">
+                </div>
+                <div class="etd-form-group">
+                    <label>Calculated ETA</label>
+                    <div id="eta-display" style="padding: 8px; background-color: #f8f9fa; border-radius: 4px; font-weight: bold;">--:--</div>
+                </div>
+                <div class="etd-form-buttons">
+                    <button type="button" id="reset-flight-position" class="reset-button">Reset</button>
+                    <button type="button" id="cancel-etd">Cancel</button>
+                    <button type="submit" id="save-etd">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDHeiQjoYbh0_aK5DqIg24BOKqrCOMkQjk",
+            authDomain: "better-23-27oct.firebaseapp.com",
+            projectId: "better-23-27oct",
+            storageBucket: "better-23-27oct.firebasestorage.app",
+            messagingSenderId: "864425066767",
+            appId: "1:864425066767:web:9379c506151ee22fb17e7a"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // Updated Flight data from the Excel files for October 23-27, 2025
+        const flightData = {
+            "2025-10-23": [
+                { fleet: "73A", aircraft: "BKJB", flightNo: "HB340", std: "00:30", origin: "HKG", dest: "KIX", sta: "04:35", date: "2025-10-23" },
+                { fleet: "73A", aircraft: "BKJB", flightNo: "HB341", std: "05:30", origin: "KIX", dest: "HKG", sta: "09:35", date: "2025-10-23" },
+                { fleet: "73A", aircraft: "BKJB", flightNo: "HB704", std: "10:30", origin: "HKG", dest: "TPE", sta: "12:20", date: "2025-10-23" },
+                { fleet: "73A", aircraft: "BKJB", flightNo: "HB705", std: "13:20", origin: "TPE", dest: "HKG", sta: "15:20", date: "2025-10-23" },
+                { fleet: "73A", aircraft: "BKJC", flightNo: "HB860", std: "01:35", origin: "HKG", dest: "HSN", sta: "03:50", date: "2025-10-23" },
+                { fleet: "73A", aircraft: "BKJC", flightNo: "HB861", std: "04:50", origin: "HSN", dest: "HKG", sta: "07:20", date: "2025-10-23" },
+                { fleet: "73A", aircraft: "BKJC", flightNo: "HB850", std: "09:40", origin: "HKG", dest: "YIH", sta: "11:35", date: "2025-10-23" },
+                { fleet: "73A", aircraft: "BKJC", flightNo: "HB851", std: "12:35", origin: "YIH", dest: "HKG", sta: "14:50", date: "2025-10-23" },
+                { fleet: "73A", aircraft: "BKJD", flightNo: "HB320", std: "01:20", origin: "HKG", dest: "NRT", sta: "06:05", date: "2025-10-23" },
+                { fleet: "73A", aircraft: "BKJD", flightNo: "HB321", std: "07:05", origin: "NRT", dest: "HKG", sta: "12:10", date: "2025-10-23" },
+                { fleet: "73A", aircraft: "BKJD", flightNo: "HB546", std: "13:10", origin: "HKG", dest: "JJN", sta: "14:30", date: "2025-10-23" },
+                { fleet: "73B", aircraft: "BKJE", flightNo: "HB281", std: "00:05", origin: "HKG", dest: "BKK", sta: "03:10", date: "2025-10-23" },
+                { fleet: "73B", aircraft: "BKJE", flightNo: "HB282", std: "04:15", origin: "BKK", dest: "HKG", sta: "07:00", date: "2025-10-23" },
+                { fleet: "73B", aircraft: "BKJE", flightNo: "HB542", std: "07:50", origin: "HKG", dest: "ENH", sta: "10:10", date: "2025-10-23" },
+                { fleet: "73B", aircraft: "BKJE", flightNo: "HB543", std: "11:10", origin: "ENH", dest: "HKG", sta: "13:25", date: "2025-10-23" },
+                { fleet: "73B", aircraft: "BKJH", flightNo: "HB872", std: "13:55", origin: "HKG", dest: "DYG", sta: "15:55", date: "2025-10-23" },
+                { fleet: "73B", aircraft: "BKJF", flightNo: "HB702Z", std: "00:50", origin: "HKG", dest: "TPE", sta: "02:40", date: "2025-10-23" },
+                { fleet: "73B", aircraft: "BKJF", flightNo: "HB703", std: "03:45", origin: "TPE", dest: "HKG", sta: "06:10", date: "2025-10-23" },
+                { fleet: "73B", aircraft: "BKJF", flightNo: "HB344", std: "07:00", origin: "HKG", dest: "KIX", sta: "10:55", date: "2025-10-23" },
+                { fleet: "73B", aircraft: "BKJF", flightNo: "HB345", std: "11:50", origin: "KIX", dest: "HKG", sta: "15:55", date: "2025-10-23" },
+                { fleet: "73B", aircraft: "BKJH", flightNo: "HB322", std: "03:10", origin: "HKG", dest: "NRT", sta: "07:45", date: "2025-10-23" },
+                { fleet: "73B", aircraft: "BKJH", flightNo: "HB323", std: "08:45", origin: "NRT", dest: "HKG", sta: "13:50", date: "2025-10-23" },
+                { fleet: "73A", aircraft: "BKJA", flightNo: "HB2297", std: "14:40", origin: "HKG", dest: "BKK", sta: "17:40", date: "2025-10-23" },
+                { fleet: "73A", aircraft: "BKJA", flightNo: "HB2298", std: "18:40", origin: "BKK", dest: "HKG", sta: "21:40", date: "2025-10-23" },
+                { fleet: "73B", aircraft: "BKJE", flightNo: "HB848", std: "23:45", origin: "HKG", dest: "XUZ", sta: "02:20", date: "2025-10-24" }
+            ],
+            "2025-10-24": [
+                { fleet: "73A", aircraft: "BKJA", flightNo: "HB320", std: "01:20", origin: "HKG", dest: "NRT", sta: "06:05", date: "2025-10-24" },
+                { fleet: "73A", aircraft: "BKJA", flightNo: "HB321", std: "07:05", origin: "NRT", dest: "HKG", sta: "12:10", date: "2025-10-24" },
+                { fleet: "73A", aircraft: "BKJA", flightNo: "HB2297", std: "14:40", origin: "HKG", dest: "BKK", sta: "17:40", date: "2025-10-24" },
+                { fleet: "73A", aircraft: "BKJA", flightNo: "HB2298", std: "18:40", origin: "BKK", dest: "HKG", sta: "21:40", date: "2025-10-24" },
+                { fleet: "73A", aircraft: "BKJB", flightNo: "HB340", std: "00:30", origin: "HKG", dest: "KIX", sta: "04:35", date: "2025-10-24" },
+                { fleet: "73A", aircraft: "BKJB", flightNo: "HB341", std: "05:30", origin: "KIX", dest: "HKG", sta: "09:35", date: "2025-10-24" },
+                { fleet: "73A", aircraft: "BKJB", flightNo: "HB704", std: "10:30", origin: "HKG", dest: "TPE", sta: "12:20", date: "2025-10-24" },
+                { fleet: "73A", aircraft: "BKJB", flightNo: "HB705", std: "13:20", origin: "TPE", dest: "HKG", sta: "15:20", date: "2025-10-24" },
+                { fleet: "73A", aircraft: "BKJC", flightNo: "HB702Z", std: "00:35", origin: "HKG", dest: "TPE", sta: "02:25", date: "2025-10-24" },
+                { fleet: "73A", aircraft: "BKJC", flightNo: "HB703", std: "03:15", origin: "TPE", dest: "HKG", sta: "05:15", date: "2025-10-24" },
+                { fleet: "73A", aircraft: "BKJC", flightNo: "HB8235", std: "06:10", origin: "HKG", dest: "ROR", sta: "10:30", date: "2025-10-24" },
+                { fleet: "73A", aircraft: "BKJC", flightNo: "HB8236", std: "11:30", origin: "ROR", dest: "HKG", sta: "15:25", date: "2025-10-24" },
+                { fleet: "73A", aircraft: "BKJD", flightNo: "HB547", std: "00:00", origin: "JJN", dest: "HKG", sta: "01:25", date: "2025-10-24" },
+                { fleet: "73A", aircraft: "BKJD", flightNo: "HB2520", std: "02:10", origin: "HKG", dest: "PQC", sta: "05:25", date: "2025-10-24" },
+                { fleet: "73A", aircraft: "BKJD", flightNo: "HB2521", std: "06:25", origin: "PQC", dest: "HKG", sta: "10:00", date: "2025-10-24" },
+                { fleet: "73A", aircraft: "BKJD", flightNo: "HB546", std: "13:10", origin: "HKG", dest: "JJN", sta: "14:30", date: "2025-10-24" },
+                { fleet: "73B", aircraft: "BKJH", flightNo: "HB873", std: "00:30", origin: "DYG", dest: "HKG", sta: "02:20", date: "2025-10-24" },
+                { fleet: "73B", aircraft: "BKJH", flightNo: "HB322", std: "03:10", origin: "HKG", dest: "NRT", sta: "07:45", date: "2025-10-24" },
+                { fleet: "73B", aircraft: "BKJH", flightNo: "HB323", std: "08:45", origin: "NRT", dest: "HKG", sta: "13:50", date: "2025-10-24" },
+                { fleet: "73B", aircraft: "BKJF", flightNo: "HB281", std: "00:05", origin: "HKG", dest: "BKK", sta: "03:10", date: "2025-10-24" },
+                { fleet: "73B", aircraft: "BKJF", flightNo: "HB282", std: "04:15", origin: "BKK", dest: "HKG", sta: "07:05", date: "2025-10-24" },
+                { fleet: "73B", aircraft: "BKJF", flightNo: "HB297", std: "13:55", origin: "HKG", dest: "BKK", sta: "17:05", date: "2025-10-24" },
+                { fleet: "73B", aircraft: "BKJF", flightNo: "HB298", std: "20:00", origin: "BKK", dest: "HKG", sta: "23:00", date: "2025-10-24" },
+                { fleet: "73B", aircraft: "BKJE", flightNo: "HB849", std: "03:20", origin: "XUZ", dest: "HKG", sta: "06:05", date: "2025-10-24" },
+                { fleet: "73B", aircraft: "BKJE", flightNo: "HB344", std: "07:00", origin: "HKG", dest: "KIX", sta: "10:55", date: "2025-10-24" },
+                { fleet: "73B", aircraft: "BKJE", flightNo: "HB345", std: "11:50", origin: "KIX", dest: "HKG", sta: "15:55", date: "2025-10-24" },
+                { fleet: "73B", aircraft: "BKJH", flightNo: "HB702", std: "23:50", origin: "HKG", dest: "TPE", sta: "01:50", date: "2025-10-25" }
+            ],
+            "2025-10-25": [
+                { fleet: "73A", aircraft: "BKJA", flightNo: "HB340", std: "00:30", origin: "HKG", dest: "KIX", sta: "04:35", date: "2025-10-25" },
+                { fleet: "73A", aircraft: "BKJA", flightNo: "HB341", std: "05:30", origin: "KIX", dest: "HKG", sta: "09:35", date: "2025-10-25" },
+                { fleet: "73A", aircraft: "BKJA", flightNo: "HB704", std: "10:30", origin: "HKG", dest: "TPE", sta: "12:20", date: "2025-10-25" },
+                { fleet: "73A", aircraft: "BKJA", flightNo: "HB705", std: "13:20", origin: "TPE", dest: "HKG", sta: "15:20", date: "2025-10-25" },
+                { fleet: "73A", aircraft: "BKJB", flightNo: "HB360", std: "02:15", origin: "HKG", dest: "SDJ", sta: "06:25", date: "2025-10-25" },
+                { fleet: "73A", aircraft: "BKJB", flightNo: "HB341", std: "07:25", origin: "SDJ", dest: "HKG", sta: "12:25", date: "2025-10-25" },
+                { fleet: "73A", aircraft: "BKJB", flightNo: "HB231", std: "16:25", origin: "HKG", dest: "MNL", sta: "18:35", date: "2025-10-25" },
+                { fleet: "73A", aircraft: "BKJB", flightNo: "HB232", std: "19:30", origin: "MNL", dest: "HKG", sta: "21:45", date: "2025-10-25" },
+                { fleet: "73A", aircraft: "BKJC", flightNo: "HB320", std: "01:20", origin: "HKG", dest: "NRT", sta: "06:05", date: "2025-10-25" },
+                { fleet: "73A", aircraft: "BKJC", flightNo: "HB321", std: "07:05", origin: "NRT", dest: "HKG", sta: "12:10", date: "2025-10-25" },
+                { fleet: "73A", aircraft: "BKJC", flightNo: "HB872", std: "13:55", origin: "HKG", dest: "DYG", sta: "15:55", date: "2025-10-25" },
+                { fleet: "73A", aircraft: "BKJD", flightNo: "HB547", std: "00:00", origin: "JJN", dest: "HKG", sta: "01:25", date: "2025-10-25" },
+                { fleet: "73A", aircraft: "BKJD", flightNo: "HB322", std: "03:00", origin: "HKG", dest: "NRT", sta: "07:45", date: "2025-10-25" },
+                { fleet: "73A", aircraft: "BKJD", flightNo: "HB323", std: "08:45", origin: "NRT", dest: "HKG", sta: "13:50", date: "2025-10-25" },
+                { fleet: "73B", aircraft: "BKJE", flightNo: "HB281", std: "00:05", origin: "HKG", dest: "BKK", sta: "03:10", date: "2025-10-25" },
+                { fleet: "73B", aircraft: "BKJE", flightNo: "HB282", std: "04:15", origin: "BKK", dest: "HKG", sta: "07:05", date: "2025-10-25" },
+                { fleet: "73B", aircraft: "BKJE", flightNo: "HB862", std: "08:20", origin: "HKG", dest: "HSN", sta: "10:20", date: "2025-10-25" },
+                { fleet: "73B", aircraft: "BKJE", flightNo: "HB863", std: "11:20", origin: "HSN", dest: "HKG", sta: "13:45", date: "2025-10-25" },
+                { fleet: "73B", aircraft: "BKJF", flightNo: "HB530", std: "00:50", origin: "HKG", dest: "KWL", sta: "02:15", date: "2025-10-25" },
+                { fleet: "73B", aircraft: "BKJF", flightNo: "HB531", std: "03:05", origin: "KWL", dest: "HKG", sta: "04:30", date: "2025-10-25" },
+                { fleet: "73B", aircraft: "BKJF", flightNo: "HB932", std: "05:25", origin: "HKG", dest: "DAT", sta: "08:50", date: "2025-10-25" },
+                { fleet: "73B", aircraft: "BKJF", flightNo: "HB933", std: "09:45", origin: "DAT", dest: "HKG", sta: "12:55", date: "2025-10-25" },
+                { fleet: "73B", aircraft: "BKJH", flightNo: "HB703", std: "02:55", origin: "TPE", dest: "HKG", sta: "04:55", date: "2025-10-25" },
+                { fleet: "73B", aircraft: "BKJH", flightNo: "HB2342", std: "07:00", origin: "HKG", dest: "KIX", sta: "10:55", date: "2025-10-25" },
+                { fleet: "73B", aircraft: "BKJH", flightNo: "HB2343", std: "11:50", origin: "KIX", dest: "HKG", sta: "15:55", date: "2025-10-25" }
+            ],
+            "2025-10-26": [
+                { fleet: "73A", aircraft: "BKJA", flightNo: "HB822", std: "00:55", origin: "HKG", dest: "XUZ", sta: "03:30", date: "2025-10-26" },
+                { fleet: "73A", aircraft: "BKJA", flightNo: "HB823", std: "04:30", origin: "XUZ", dest: "HKG", sta: "07:15", date: "2025-10-26" },
+                { fleet: "73A", aircraft: "BKJA", flightNo: "HB704", std: "10:35", origin: "HKG", dest: "TPE", sta: "12:40", date: "2025-10-26" },
+                { fleet: "73A", aircraft: "BKJA", flightNo: "HB705", std: "13:40", origin: "TPE", dest: "HKG", sta: "15:35", date: "2025-10-26" },
+                { fleet: "73A", aircraft: "BKJB", flightNo: "HB322", std: "03:20", origin: "HKG", dest: "NRT", sta: "07:20", date: "2025-10-26" },
+                { fleet: "73A", aircraft: "BKJB", flightNo: "HB323", std: "08:20", origin: "NRT", dest: "HKG", sta: "14:10", date: "2025-10-26" },
+                { fleet: "73A", aircraft: "BKJB", flightNo: "HB708", std: "15:05", origin: "HKG", dest: "TPE", sta: "17:10", date: "2025-10-26" },
+                { fleet: "73A", aircraft: "BKJB", flightNo: "HB709", std: "19:10", origin: "TPE", dest: "HKG", sta: "21:20", date: "2025-10-26" },
+                { fleet: "73A", aircraft: "BKJC", flightNo: "HB873", std: "00:30", origin: "DYG", dest: "HKG", sta: "02:20", date: "2025-10-26" },
+                { fleet: "73A", aircraft: "BKJC", flightNo: "HB850", std: "08:00", origin: "HKG", dest: "YIH", sta: "10:15", date: "2025-10-26" },
+                { fleet: "73A", aircraft: "BKJC", flightNo: "HB851", std: "11:15", origin: "YIH", dest: "HKG", sta: "13:40", date: "2025-10-26" },
+                { fleet: "73A", aircraft: "BKJC", flightNo: "HB295", std: "14:50", origin: "HKG", dest: "BKK", sta: "17:50", date: "2025-10-26" },
+                { fleet: "73A", aircraft: "BKJC", flightNo: "HB296", std: "18:55", origin: "BKK", dest: "HKG", sta: "22:00", date: "2025-10-26" },
+                { fleet: "73B", aircraft: "BKJE", flightNo: "HB702", std: "00:05", origin: "HKG", dest: "TPE", sta: "01:50", date: "2025-10-26" },
+                { fleet: "73B", aircraft: "BKJE", flightNo: "HB703", std: "02:45", origin: "TPE", dest: "HKG", sta: "04:50", date: "2025-10-26" },
+                { fleet: "73B", aircraft: "BKJE", flightNo: "HB344", std: "05:40", origin: "HKG", dest: "KIX", sta: "09:15", date: "2025-10-26" },
+                { fleet: "73B", aircraft: "BKJE", flightNo: "HB345", std: "10:15", origin: "KIX", dest: "HKG", sta: "15:00", date: "2025-10-26" },
+                { fleet: "73B", aircraft: "BKJF", flightNo: "HB340", std: "00:15", origin: "HKG", dest: "KIX", sta: "03:55", date: "2025-10-26" },
+                { fleet: "73B", aircraft: "BKJF", flightNo: "HB341", std: "05:00", origin: "KIX", dest: "HKG", sta: "09:55", date: "2025-10-26" },
+                { fleet: "73B", aircraft: "BKJF", flightNo: "HB706", std: "12:10", origin: "HKG", dest: "TPE", sta: "14:15", date: "2025-10-26" },
+                { fleet: "73B", aircraft: "BKJF", flightNo: "HB707", std: "15:10", origin: "TPE", dest: "HKG", sta: "17:10", date: "2025-10-26" },
+                { fleet: "73B", aircraft: "BKJH", flightNo: "HB320", std: "01:05", origin: "HKG", dest: "NRT", sta: "05:15", date: "2025-10-26" },
+                { fleet: "73B", aircraft: "BKJH", flightNo: "HB321", std: "06:10", origin: "NRT", dest: "HKG", sta: "11:50", date: "2025-10-26" },
+                { fleet: "73B", aircraft: "BKJH", flightNo: "HB546", std: "12:55", origin: "HKG", dest: "JJN", sta: "14:30", date: "2025-10-26" }
+            ],
+            "2025-10-27": [
+                { fleet: "73A", aircraft: "BKJA", flightNo: "HB704", std: "10:35", origin: "HKG", dest: "TPE", sta: "12:40", date: "2025-10-27" },
+                { fleet: "73A", aircraft: "BKJA", flightNo: "HB705", std: "13:40", origin: "TPE", dest: "HKG", sta: "15:35", date: "2025-10-27" },
+                { fleet: "73A", aircraft: "BKJB", flightNo: "HB340", std: "00:15", origin: "HKG", dest: "KIX", sta: "03:55", date: "2025-10-27" },
+                { fleet: "73A", aircraft: "BKJB", flightNo: "HB341", std: "05:00", origin: "KIX", dest: "HKG", sta: "09:55", date: "2025-10-27" },
+                { fleet: "73A", aircraft: "BKJC", flightNo: "HB360", std: "01:55", origin: "HKG", dest: "SDJ", sta: "06:20", date: "2025-10-27" },
+                { fleet: "73A", aircraft: "BKJC", flightNo: "HB361", std: "07:20", origin: "SDJ", dest: "HKG", sta: "13:05", date: "2025-10-27" },
+                { fleet: "73A", aircraft: "BKJD", flightNo: "HB320", std: "01:05", origin: "HKG", dest: "NRT", sta: "05:15", date: "2025-10-27" },
+                { fleet: "73A", aircraft: "BKJD", flightNo: "HB321", std: "06:10", origin: "NRT", dest: "HKG", sta: "11:50", date: "2025-10-27" },
+                { fleet: "73A", aircraft: "BKJD", flightNo: "HB295", std: "14:15", origin: "HKG", dest: "BKK", sta: "17:15", date: "2025-10-27" },
+                { fleet: "73A", aircraft: "BKJD", flightNo: "HB296", std: "18:55", origin: "BKK", dest: "HKG", sta: "22:00", date: "2025-10-27" },
+                { fleet: "73B", aircraft: "BKJE", flightNo: "HB702", std: "00:05", origin: "HKG", dest: "TPE", sta: "01:50", date: "2025-10-27" },
+                { fleet: "73B", aircraft: "BKJE", flightNo: "HB703", std: "02:45", origin: "TPE", dest: "HKG", sta: "04:50", date: "2025-10-27" },
+                { fleet: "73B", aircraft: "BKJE", flightNo: "HB872", std: "06:10", origin: "HKG", dest: "DYG", sta: "08:10", date: "2025-10-27" },
+                { fleet: "73B", aircraft: "BKJE", flightNo: "HB873", std: "09:10", origin: "DYG", dest: "HKG", sta: "11:25", date: "2025-10-27" },
+                { fleet: "73B", aircraft: "BKJF", flightNo: "HB860", std: "00:35", origin: "HKG", dest: "HSN", sta: "02:55", date: "2025-10-27" },
+                { fleet: "73B", aircraft: "BKJF", flightNo: "HB861", std: "03:55", origin: "HSN", dest: "HKG", sta: "06:45", date: "2025-10-27" },
+                { fleet: "73B", aircraft: "BKJF", flightNo: "HB520", std: "08:45", origin: "HKG", dest: "PQC", sta: "12:00", date: "2025-10-27" },
+                { fleet: "73B", aircraft: "BKJF", flightNo: "HB521", std: "13:00", origin: "PQC", dest: "HKG", sta: "15:55", date: "2025-10-27" },
+                { fleet: "73B", aircraft: "BKJH", flightNo: "HB547", std: "00:40", origin: "JJN", dest: "HKG", sta: "02:15", date: "2025-10-27" },
+                { fleet: "73B", aircraft: "BKJH", flightNo: "HB322", std: "03:20", origin: "HKG", dest: "NRT", sta: "07:20", date: "2025-10-27" },
+                { fleet: "73B", aircraft: "BKJH", flightNo: "HB323", std: "08:20", origin: "NRT", dest: "HKG", sta: "14:10", date: "2025-10-27" }
+            ]
+        };
+
+        // Status data storage - will be saved with the HTML
+        let flightStatusData = {};
+
+        // ETD data storage
+        let flightETDData = {};
+
+        // Current state
+        let currentDate = "2025-10-23";
+        let draggedFlight = null;
+        let dragSourceAircraft = null;
+        let dropTargetFlight = null;
+        let currentStatusFlight = null;
+        let currentETDFlight = null;
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            // Try to load saved data from localStorage
+            loadSavedData();
+            initializeGanttChart();
+            setupEventListeners();
+            
+            // Set up 24-hour time inputs
+            setupTimeInputs();
+        });
+
+        function setupTimeInputs() {
+            // Convert all time inputs to text inputs with 24-hour format validation
+            const timeInputs = document.querySelectorAll('.time-input');
+            timeInputs.forEach(input => {
+                // Add input validation for 24-hour format
+                input.addEventListener('input', function(e) {
+                    let value = this.value.replace(/[^0-9:]/g, '');
+                    
+                    // Auto-insert colon after 2 digits
+                    if (value.length === 2 && !value.includes(':')) {
+                        value = value + ':';
+                    }
+                    
+                    // Limit to HH:MM format
+                    if (value.length > 5) {
+                        value = value.substring(0, 5);
+                    }
+                    
+                    this.value = value;
+                    
+                    // Validate the time
+                    if (value.length === 5) {
+                        const [hours, minutes] = value.split(':');
+                        const hoursNum = parseInt(hours);
+                        const minutesNum = parseInt(minutes);
+                        
+                        if (hoursNum > 23 || minutesNum > 59) {
+                            this.style.borderColor = '#e74c3c';
+                        } else {
+                            this.style.borderColor = '#ddd';
+                        }
+                    }
+                });
+                
+                // Format on blur
+                input.addEventListener('blur', function() {
+                    if (this.value) {
+                        const [hours, minutes] = this.value.split(':');
+                        if (hours && minutes) {
+                            const formattedHours = hours.padStart(2, '0');
+                            const formattedMinutes = minutes.padStart(2, '0');
+                            this.value = `${formattedHours}:${formattedMinutes}`;
+                        }
+                    }
+                });
+            });
+            
+            // Add ETA calculation when ETD time or block hours change
+            document.getElementById('etd-time').addEventListener('input', updateETA);
+            document.getElementById('etd-block-hours').addEventListener('input', updateETA);
+        }
+
+        function updateETA() {
+            const etdTime = document.getElementById('etd-time').value;
+            const blockHours = parseFloat(document.getElementById('etd-block-hours').value) || 0;
+            
+            if (etdTime && blockHours > 0) {
+                const etdMinutes = timeToMinutes(etdTime);
+                const etaMinutes = etdMinutes + (blockHours * 60);
+                
+                // Handle crossing midnight
+                const adjustedEtaMinutes = etaMinutes >= 1440 ? etaMinutes - 1440 : etaMinutes;
+                
+                const etaTime = minutesToTime(adjustedEtaMinutes);
+                document.getElementById('eta-display').textContent = etaTime;
+            } else {
+                document.getElementById('eta-display').textContent = '--:--';
+            }
+        }
+
+        function initializeGanttChart() {
+            updateDateDisplay();
+            createTimelineHeader();
+            createAircraftList();
+            renderFlightBars();
+            addTimeMarkers();
+        }
+
+        function updateDateDisplay() {
+            const dateElement = document.getElementById('current-date');
+            const dateObj = new Date(currentDate);
+            const options = { year: 'numeric', month: 'long', day: 'numeric' };
+            dateElement.textContent = dateObj.toLocaleDateString('en-US', options);
+        }
+
+        function createTimelineHeader() {
+            const timelineHeader = document.getElementById('timeline-header');
+            timelineHeader.innerHTML = '';
+            
+            for (let hour = 0; hour < 24; hour++) {
+                const column = document.createElement('div');
+                column.className = 'timeline-column';
+                column.textContent = `${hour.toString().padStart(2, '0')}:00`;
+                timelineHeader.appendChild(column);
+            }
+        }
+
+        function createAircraftList() {
+            const aircraftList = document.getElementById('aircraft-list');
+            aircraftList.innerHTML = '';
+            
+            // Get unique aircraft for the current date
+            const aircraftSet = new Set();
+            flightData[currentDate].forEach(flight => {
+                aircraftSet.add(flight.aircraft);
+            });
+            
+            const aircraftArray = Array.from(aircraftSet).sort();
+            
+            aircraftArray.forEach(aircraft => {
+                const aircraftItem = document.createElement('div');
+                aircraftItem.className = 'aircraft-item';
+                aircraftItem.textContent = aircraft;
+                aircraftItem.dataset.aircraft = aircraft;
+                
+                // Make aircraft items drop targets
+                aircraftItem.addEventListener('dragover', handleDragOver);
+                aircraftItem.addEventListener('drop', handleDrop);
+                
+                aircraftList.appendChild(aircraftItem);
+            });
+        }
+
+        function renderFlightBars() {
+            const timeline = document.getElementById('timeline');
+            timeline.innerHTML = '';
+            
+            // Get unique aircraft for positioning
+            const aircraftSet = new Set();
+            flightData[currentDate].forEach(flight => {
+                aircraftSet.add(flight.aircraft);
+            });
+            
+            const aircraftArray = Array.from(aircraftSet).sort();
+            
+            // Create flight bars
+            flightData[currentDate].forEach(flight => {
+                const flightContainer = createFlightBar(flight, aircraftArray.indexOf(flight.aircraft));
+                timeline.appendChild(flightContainer);
+            });
+        }
+
+        function createFlightBar(flight, aircraftIndex) {
+            const flightContainer = document.createElement('div');
+            
+            // Create status bar
+            const statusBar = document.createElement('div');
+            statusBar.className = 'status-bar';
+            statusBar.dataset.flightNo = flight.flightNo;
+            statusBar.dataset.date = flight.date;
+            
+            // Calculate position and width for status bar based on OUT time
+            const statusPosition = calculateStatusBarPosition(flight);
+            statusBar.style.left = `${statusPosition.left}px`;
+            statusBar.style.width = `${statusPosition.width}px`;
+            statusBar.style.top = `${aircraftIndex * 80 + 10}px`;
+            
+            // Apply status data if available
+            applyStatusToBar(statusBar, flight.flightNo, flight.date);
+            
+            // Add click event for status bar
+            statusBar.addEventListener('click', () => openStatusModal(flight));
+            
+            // Create flight bar (always at scheduled times)
+            const flightBar = document.createElement('div');
+            flightBar.className = 'flight-bar';
+            flightBar.dataset.flightNo = flight.flightNo;
+            flightBar.dataset.aircraft = flight.aircraft;
+            flightBar.dataset.date = flight.date;
+            
+            // Check if ETD data exists for this flight
+            const etdData = getFlightETD(flight.flightNo, flight.date);
+            
+            // Flight bar shows scheduled times or ETD-adjusted times
+            let startTime, endTime, duration;
+            let showETA = false;
+            let etaTime = '';
+            
+            if (etdData && etdData.etdTime) {
+                // Use ETD time and block hours
+                startTime = timeToMinutes(etdData.etdTime);
+                const blockHours = etdData.blockHours || calculateBlockHours(flight);
+                endTime = startTime + (blockHours * 60);
+                
+                // Calculate ETA for display
+                etaTime = minutesToTime(endTime);
+                showETA = true;
+                
+                // Apply pink color for ETD-adjusted flights
+                flightBar.classList.add('pink');
+            } else {
+                // Use scheduled times
+                startTime = timeToMinutes(flight.std);
+                endTime = timeToMinutes(flight.sta);
+                duration = endTime - startTime;
+            }
+            
+            // Handle flights that span past midnight
+            const adjustedEndTime = endTime < startTime ? endTime + 1440 : endTime;
+            const adjustedDuration = adjustedEndTime - startTime;
+            
+            flightBar.style.left = `${(startTime / 60) * 60}px`;
+            flightBar.style.width = `${(adjustedDuration / 60) * 60}px`;
+            flightBar.style.top = `${aircraftIndex * 80 + 30}px`;
+            
+            // Apply color based on ETD status
+            if (!flightBar.classList.contains('pink')) {
+                flightBar.style.backgroundColor = '#3498db';
+            }
+            
+            // Add passenger loading bar if data exists
+            const status = getFlightStatus(flight.flightNo, flight.date);
+            if (status && status.paxLoading !== undefined) {
+                const paxPercentage = (status.paxLoading / 189) * 100;
+                const paxBar = document.createElement('div');
+                paxBar.className = 'pax-loading-bar';
+                
+                // Determine color based on percentage
+                if (paxPercentage >= 67) {
+                    paxBar.classList.add('pax-loading-green');
+                } else if (paxPercentage >= 34) {
+                    paxBar.classList.add('pax-loading-yellow');
+                } else {
+                    paxBar.classList.add('pax-loading-red');
+                }
+                
+                paxBar.style.width = `${paxPercentage}%`;
+                flightBar.appendChild(paxBar);
+                
+                // Add passenger count info
+                const paxInfo = document.createElement('div');
+                paxInfo.className = 'pax-info';
+                paxInfo.textContent = `${status.paxLoading}/189`;
+                flightBar.appendChild(paxInfo);
+            }
+            
+            // Add flight information
+            const flightInfo = document.createElement('div');
+            flightInfo.className = 'flight-info';
+            
+            // Show ETD and ETA info if available
+            if (showETA) {
+                flightInfo.innerHTML = `
+                    <div>${flight.flightNo}</div>
+                    <div class="flight-origin-dest">ETD: ${etdData.etdTime}</div>
+                    <div class="eta-display">ETA: ${etaTime}</div>
+                `;
+            } else {
+                flightInfo.innerHTML = `
+                    <div>${flight.flightNo}</div>
+                    <div class="flight-origin-dest">${flight.std} - ${flight.sta}</div>
+                `;
+            }
+            
+            flightBar.appendChild(flightInfo);
+            
+            // Add drag functionality
+            flightBar.draggable = true;
+            flightBar.addEventListener('dragstart', handleDragStart);
+            flightBar.addEventListener('dragover', handleFlightDragOver);
+            flightBar.addEventListener('drop', handleFlightDrop);
+            flightBar.addEventListener('dragend', handleDragEnd);
+            flightBar.addEventListener('click', () => showFlightDetails(flight));
+            
+            // Add click event for ETD popup
+            flightBar.addEventListener('click', (e) => {
+                // Only open ETD popup if not dragging
+                if (!e.target.classList.contains('swapping')) {
+                    openETDPopup(flight);
+                }
+            });
+            
+            // Append both bars to container
+            flightContainer.appendChild(statusBar);
+            flightContainer.appendChild(flightBar);
+            
+            return flightContainer;
+        }
+
+        function calculateStatusBarPosition(flight) {
+            const status = getFlightStatus(flight.flightNo, flight.date);
+            const stdTime = timeToMinutes(flight.std);
+            const staTime = timeToMinutes(flight.sta);
+            
+            // Default to scheduled times
+            let startTime = stdTime;
+            let endTime = staTime;
+            
+            // If OUT time is provided, adjust the status bar
+            if (status && status.outTime) {
+                const outTime = timeToMinutes(status.outTime);
+                const blockHours = status.blockHours || calculateBlockHours(flight); // Use calculated or default block hours
+                
+                // Calculate new start and end times based on OUT time and block hours
+                startTime = outTime;
+                endTime = outTime + (blockHours * 60); // Convert hours to minutes
+                
+                // Ensure we don't go past midnight
+                if (endTime > 1440) {
+                    endTime = 1440;
+                }
+            }
+            
+            // Handle flights that span past midnight
+            const adjustedEndTime = endTime < startTime ? endTime + 1440 : endTime;
+            const adjustedDuration = adjustedEndTime - startTime;
+            
+            return {
+                left: (startTime / 60) * 60,
+                width: (adjustedDuration / 60) * 60
+            };
+        }
+
+        function calculateBlockHours(flight) {
+            const stdTime = timeToMinutes(flight.std);
+            const staTime = timeToMinutes(flight.sta);
+            const duration = staTime - stdTime;
+            
+            // Handle flights that span past midnight
+            const adjustedDuration = duration < 0 ? duration + 1440 : duration;
+            
+            // Convert minutes to hours
+            return adjustedDuration / 60;
+        }
+
+        function applyStatusToBar(statusBar, flightNo, date) {
+            const status = getFlightStatus(flightNo, date);
+            if (status) {
+                statusBar.classList.add('active');
+                
+                // Calculate OUT and IN time positions
+                const flight = flightData[date].find(f => f.flightNo === flightNo);
+                if (flight && status.outTime) {
+                    const outTime = timeToMinutes(status.outTime);
+                    const blockHours = status.blockHours || calculateBlockHours(flight);
+                    const inTime = status.inTime ? timeToMinutes(status.inTime) : outTime + (blockHours * 60);
+                    
+                    // Calculate positions relative to OUT time and block hours
+                    const totalDuration = blockHours * 60; // Convert to minutes
+                    const inPosition = totalDuration > 0 ? ((inTime - outTime) / totalDuration) * 100 : 100;
+                    
+                    // Create gradient based on status
+                    let gradient = '';
+                    if (inTime <= outTime + (blockHours * 60)) {
+                        // On time
+                        gradient = `linear-gradient(90deg, #2ecc71 0%, #2ecc71 ${inPosition}%, #2ecc71 ${inPosition}%, #2ecc71 100%)`;
+                    } else {
+                        // Delayed
+                        gradient = `linear-gradient(90deg, #f1c40f 0%, #f1c40f ${inPosition}%, #e74c3c ${inPosition}%, #e74c3c 100%)`;
+                    }
+                    
+                    statusBar.style.background = gradient;
+                }
+            }
+        }
+
+        function getFlightStatus(flightNo, date) {
+            const key = `${flightNo}_${date}`;
+            return flightStatusData[key];
+        }
+
+        function setFlightStatus(flightNo, date, status) {
+            const key = `${flightNo}_${date}`;
+            flightStatusData[key] = status;
+        }
+
+        function getFlightETD(flightNo, date) {
+            const key = `${flightNo}_${date}`;
+            return flightETDData[key];
+        }
+
+        function setFlightETD(flightNo, date, etdData) {
+            const key = `${flightNo}_${date}`;
+            flightETDData[key] = etdData;
+        }
+
+        function openStatusModal(flight) {
+            currentStatusFlight = flight;
+            const modal = document.getElementById('status-modal');
+            const form = document.getElementById('status-form');
+            
+            // Fill form with existing data if available
+            const status = getFlightStatus(flight.flightNo, flight.date) || {};
+            document.getElementById('door-close').value = status.doorClose || '';
+            document.getElementById('out-time').value = status.outTime || '';
+            document.getElementById('off-time').value = status.offTime || '';
+            document.getElementById('on-time').value = status.onTime || '';
+            document.getElementById('in-time').value = status.inTime || '';
+            document.getElementById('door-open').value = status.doorOpen || '';
+            document.getElementById('bay').value = status.bay || '';
+            document.getElementById('block-hours').value = status.blockHours || calculateBlockHours(flight).toFixed(1);
+            document.getElementById('pax-loading').value = status.paxLoading || '';
+            
+            modal.style.display = 'block';
+        }
+
+        function closeStatusModal() {
+            const modal = document.getElementById('status-modal');
+            modal.style.display = 'none';
+            currentStatusFlight = null;
+        }
+
+        function openETDPopup(flight) {
+            currentETDFlight = flight;
+            const popup = document.getElementById('etd-popup');
+            const form = document.getElementById('etd-form');
+            
+            // Fill form with existing data if available
+            const etdData = getFlightETD(flight.flightNo, flight.date) || {};
+            document.getElementById('etd-time').value = etdData.etdTime || '';
+            document.getElementById('etd-block-hours').value = etdData.blockHours || calculateBlockHours(flight).toFixed(1);
+            
+            // Update ETA display
+            updateETA();
+            
+            popup.style.display = 'block';
+        }
+
+        function closeETDPopup() {
+            const popup = document.getElementById('etd-popup');
+            popup.style.display = 'none';
+            currentETDFlight = null;
+        }
+
+        function saveStatusData() {
+            if (!currentStatusFlight) return;
+            
+            const form = document.getElementById('status-form');
+            
+            setFlightStatus(currentStatusFlight.flightNo, currentStatusFlight.date, {
+                doorClose: document.getElementById('door-close').value,
+                outTime: document.getElementById('out-time').value,
+                offTime: document.getElementById('off-time').value,
+                onTime: document.getElementById('on-time').value,
+                inTime: document.getElementById('in-time').value,
+                doorOpen: document.getElementById('door-open').value,
+                bay: document.getElementById('bay').value,
+                blockHours: parseFloat(document.getElementById('block-hours').value) || calculateBlockHours(currentStatusFlight),
+                paxLoading: document.getElementById('pax-loading').value ? parseInt(document.getElementById('pax-loading').value) : undefined
+            });
+            
+            // Save data to localStorage
+            saveDataToStorage();
+            
+            // Re-render to update status bars
+            createAircraftList();
+            renderFlightBars();
+            
+            closeStatusModal();
+        }
+
+        function saveETDData() {
+            if (!currentETDFlight) return;
+            
+            const form = document.getElementById('etd-form');
+            const etdTime = document.getElementById('etd-time').value;
+            const blockHours = parseFloat(document.getElementById('etd-block-hours').value) || calculateBlockHours(currentETDFlight);
+            
+            if (etdTime) {
+                setFlightETD(currentETDFlight.flightNo, currentETDFlight.date, {
+                    etdTime: etdTime,
+                    blockHours: blockHours
+                });
+                
+                // Save data to localStorage
+                saveDataToStorage();
+                
+                // Re-render to update flight bars
+                createAircraftList();
+                renderFlightBars();
+            }
+            
+            closeETDPopup();
+        }
+
+        function resetFlightPosition() {
+            if (!currentETDFlight) return;
+            
+            // Remove ETD data for this flight
+            const key = `${currentETDFlight.flightNo}_${currentETDFlight.date}`;
+            delete flightETDData[key];
+            
+            // Save the updated data
+            saveDataToStorage();
+            
+            // Re-render the Gantt chart
+            createAircraftList();
+            renderFlightBars();
+            
+            // Close the popup
+            closeETDPopup();
+        }
+
+        function resetThisFlight() {
+            if (!currentStatusFlight) return;
+            
+            // Remove status data for only this flight on this date
+            const key = `${currentStatusFlight.flightNo}_${currentStatusFlight.date}`;
+            delete flightStatusData[key];
+            
+            // Save the updated status data
+            saveDataToStorage();
+            
+            // Re-render the Gantt chart
+            createAircraftList();
+            renderFlightBars();
+            
+            // Close the modal
+            closeStatusModal();
+            
+            // Show confirmation
+            alert(`Status data for ${currentStatusFlight.flightNo} on ${currentStatusFlight.date} has been reset.`);
+        }
+
+        function resetTimesForCurrentDate() {
+            // Get all flights for the current date
+            const flightsForDate = flightData[currentDate];
+            
+            // Remove status data for all flights on the current date
+            flightsForDate.forEach(flight => {
+                const key = `${flight.flightNo}_${flight.date}`;
+                delete flightStatusData[key];
+                delete flightETDData[key];
+            });
+            
+            // Save the updated status data
+            saveDataToStorage();
+            
+            // Re-render the Gantt chart
+            createAircraftList();
+            renderFlightBars();
+            
+            // Show confirmation
+            alert(`All status data for ${currentDate} has been reset.`);
+        }
+
+        function addTimeMarkers() {
+            const timeline = document.getElementById('timeline');
+            
+            // Add hour markers
+            for (let hour = 0; hour < 24; hour++) {
+                const marker = document.createElement('div');
+                marker.className = 'time-marker';
+                marker.style.left = `${hour * 60}px`;
+                
+                const label = document.createElement('div');
+                label.className = 'time-label';
+                label.textContent = `${hour.toString().padStart(2, '0')}:00`;
+                marker.appendChild(label);
+                
+                timeline.appendChild(marker);
+            }
+            
+            // Add current time marker (for demonstration, set to 10:00)
+            const currentTimeMarker = document.createElement('div');
+            currentTimeMarker.className = 'time-marker current-time';
+            currentTimeMarker.style.left = `${10 * 60}px`;
+            timeline.appendChild(currentTimeMarker);
+        }
+
+        function handleDragStart(e) {
+            draggedFlight = e.target;
+            dragSourceAircraft = draggedFlight.dataset.aircraft;
+            e.dataTransfer.setData('text/plain', draggedFlight.dataset.flightNo);
+            e.dataTransfer.effectAllowed = 'move';
+            
+            // Add swapping class for visual feedback
+            draggedFlight.classList.add('swapping');
+        }
+
+        function handleFlightDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            
+            // Highlight potential swap target
+            if (e.target.classList.contains('flight-bar') && e.target !== draggedFlight) {
+                dropTargetFlight = e.target;
+                e.target.style.backgroundColor = '#e74c3c';
+            }
+        }
+
+        function handleFlightDrop(e) {
+            e.preventDefault();
+            
+            if (e.target.classList.contains('flight-bar') && e.target !== draggedFlight) {
+                const targetFlightNo = e.target.dataset.flightNo;
+                const draggedFlightNo = draggedFlight.dataset.flightNo;
+                
+                // Show swap indicator
+                const swapIndicator = document.getElementById('swap-indicator');
+                swapIndicator.style.display = 'block';
+                setTimeout(() => {
+                    swapIndicator.style.display = 'none';
+                }, 1000);
+                
+                // Swap the flights
+                swapFlights(draggedFlightNo, targetFlightNo);
+                
+                // Save data to localStorage
+                saveDataToStorage();
+                
+                // Re-render the Gantt chart
+                createAircraftList();
+                renderFlightBars();
+            }
+            
+            // Reset drop target
+            if (dropTargetFlight) {
+                dropTargetFlight.style.backgroundColor = '#3498db';
+                dropTargetFlight = null;
+            }
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            
+            // Highlight the drop zone
+            if (e.target.classList.contains('aircraft-item')) {
+                e.target.classList.add('drop-zone');
+            }
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            
+            // Remove drop zone highlighting
+            document.querySelectorAll('.aircraft-item').forEach(item => {
+                item.classList.remove('drop-zone');
+            });
+            
+            if (e.target.classList.contains('aircraft-item')) {
+                const targetAircraft = e.target.dataset.aircraft;
+                const flightNo = e.dataTransfer.getData('text/plain');
+                
+                // Update the flight data
+                updateFlightAircraft(flightNo, targetAircraft);
+                
+                // Save data to localStorage
+                saveDataToStorage();
+                
+                // Re-render the Gantt chart
+                createAircraftList();
+                renderFlightBars();
+            }
+        }
+
+        function handleDragEnd(e) {
+            // Remove swapping class
+            if (draggedFlight) {
+                draggedFlight.classList.remove('swapping');
+                draggedFlight = null;
+            }
+            
+            // Reset drop target
+            if (dropTargetFlight) {
+                dropTargetFlight.style.backgroundColor = '#3498db';
+                dropTargetFlight = null;
+            }
+        }
+
+        function swapFlights(flightNo1, flightNo2) {
+            // Find the flights in the data
+            const flight1 = flightData[currentDate].find(f => f.flightNo === flightNo1);
+            const flight2 = flightData[currentDate].find(f => f.flightNo === flightNo2);
+            
+            if (flight1 && flight2) {
+                // Swap aircraft assignments
+                const tempAircraft = flight1.aircraft;
+                flight1.aircraft = flight2.aircraft;
+                flight2.aircraft = tempAircraft;
+            }
+        }
+
+        function updateFlightAircraft(flightNo, newAircraft) {
+            // Find the flight in the data and update its aircraft
+            const flight = flightData[currentDate].find(f => f.flightNo === flightNo);
+            if (flight) {
+                flight.aircraft = newAircraft;
+            }
+        }
+
+        function showFlightDetails(flight) {
+            const detailsPanel = document.getElementById('flight-details');
+            const status = getFlightStatus(flight.flightNo, flight.date) || {};
+            const etdData = getFlightETD(flight.flightNo, flight.date) || {};
+            
+            document.getElementById('detail-flight').textContent = flight.flightNo;
+            document.getElementById('detail-aircraft').textContent = flight.aircraft;
+            document.getElementById('detail-origin').textContent = flight.origin;
+            document.getElementById('detail-dest').textContent = flight.dest;
+            document.getElementById('detail-std').textContent = flight.std;
+            document.getElementById('detail-sta').textContent = flight.sta;
+            
+            // Show ETD and ETA if available
+            if (etdData.etdTime) {
+                const etdMinutes = timeToMinutes(etdData.etdTime);
+                const blockHours = etdData.blockHours || calculateBlockHours(flight);
+                const etaMinutes = etdMinutes + (blockHours * 60);
+                const adjustedEtaMinutes = etaMinutes >= 1440 ? etaMinutes - 1440 : etaMinutes;
+                const etaTime = minutesToTime(adjustedEtaMinutes);
+                
+                document.getElementById('detail-etd').textContent = etdData.etdTime;
+                document.getElementById('detail-eta').textContent = etaTime;
+            } else {
+                document.getElementById('detail-etd').textContent = 'Not set';
+                document.getElementById('detail-eta').textContent = 'Not set';
+            }
+            
+            document.getElementById('detail-date').textContent = flight.date;
+            document.getElementById('detail-pax').textContent = status.paxLoading ? `${status.paxLoading}/189 (${Math.round((status.paxLoading/189)*100)}%)` : 'Not set';
+            
+            detailsPanel.style.display = 'block';
+        }
+
+        function saveDataToStorage() {
+            // Save all data to localStorage
+            const saveData = {
+                flightData: flightData,
+                flightStatusData: flightStatusData,
+                flightETDData: flightETDData,
+                currentDate: currentDate
+            };
+            localStorage.setItem('flightScheduleData', JSON.stringify(saveData));
+        }
+
+        function loadSavedData() {
+            // Load data from localStorage
+            const savedData = localStorage.getItem('flightScheduleData');
+            if (savedData) {
+                const parsedData = JSON.parse(savedData);
+                if (parsedData.flightData) {
+                    // Update flight data with saved changes
+                    Object.keys(parsedData.flightData).forEach(date => {
+                        if (flightData[date]) {
+                            parsedData.flightData[date].forEach(savedFlight => {
+                                const existingFlight = flightData[date].find(f => f.flightNo === savedFlight.flightNo);
+                                if (existingFlight) {
+                                    existingFlight.aircraft = savedFlight.aircraft;
+                                }
+                            });
+                        }
+                    });
+                }
+                if (parsedData.flightStatusData) {
+                    flightStatusData = parsedData.flightStatusData;
+                }
+                if (parsedData.flightETDData) {
+                    flightETDData = parsedData.flightETDData;
+                }
+                if (parsedData.currentDate) {
+                    currentDate = parsedData.currentDate;
+                }
+            }
+        }
+
+        // Firebase functions
+        async function saveToFirebase() {
+            try {
+                const saveData = {
+                    flightData: flightData,
+                    flightStatusData: flightStatusData,
+                    flightETDData: flightETDData,
+                    currentDate: currentDate,
+                    lastUpdated: new Date().toISOString()
+                };
+                
+                await db.collection('flightSchedules').doc('current').set(saveData);
+                alert('Data successfully saved to cloud!');
+            } catch (error) {
+                console.error('Error saving to Firebase:', error);
+                alert('Error saving to cloud: ' + error.message);
+            }
+        }
+
+        async function loadFromFirebase() {
+            try {
+                const doc = await db.collection('flightSchedules').doc('current').get();
+                
+                if (doc.exists) {
+                    const firebaseData = doc.data();
+                    
+                    // Update flight data with saved changes
+                    if (firebaseData.flightData) {
+                        Object.keys(firebaseData.flightData).forEach(date => {
+                            if (flightData[date]) {
+                                firebaseData.flightData[date].forEach(savedFlight => {
+                                    const existingFlight = flightData[date].find(f => f.flightNo === savedFlight.flightNo);
+                                    if (existingFlight) {
+                                        existingFlight.aircraft = savedFlight.aircraft;
+                                    }
+                                });
+                            }
+                        });
+                    }
+                    
+                    if (firebaseData.flightStatusData) {
+                        flightStatusData = firebaseData.flightStatusData;
+                    }
+                    
+                    if (firebaseData.flightETDData) {
+                        flightETDData = firebaseData.flightETDData;
+                    }
+                    
+                    if (firebaseData.currentDate) {
+                        currentDate = firebaseData.currentDate;
+                    }
+                    
+                    // Save to localStorage as well
+                    saveDataToStorage();
+                    
+                    // Re-render the Gantt chart
+                    updateDateDisplay();
+                    createAircraftList();
+                    renderFlightBars();
+                    
+                    alert('Data successfully loaded from cloud!');
+                } else {
+                    alert('No data found in cloud.');
+                }
+            } catch (error) {
+                console.error('Error loading from Firebase:', error);
+                alert('Error loading from cloud: ' + error.message);
+            }
+        }
+
+        function saveHTML() {
+            // Save current state to localStorage
+            saveDataToStorage();
+            
+            // Create a blob with the current HTML content
+            const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+    <title>Flight Schedule Gantt Chart</title>
+    <style>
+        /* All the CSS styles would be included here */
+        ${document.querySelector('style').innerHTML}
+    </style>
+</head>
+<body>
+    ${document.querySelector('.container').outerHTML}
+    <script>
+        // Flight data with all modifications
+        const flightData = ${JSON.stringify(flightData)};
+        
+        // Status data with all inputs
+        const flightStatusData = ${JSON.stringify(flightStatusData)};
+        
+        // ETD data with all inputs
+        const flightETDData = ${JSON.stringify(flightETDData)};
+        
+        // Current application state
+        let currentDate = "${currentDate}";
+        
+        // The rest of the JavaScript code would be included here
+        ${document.querySelector('script').innerHTML}
+    <\/script>
+</body>
+</html>`;
+            
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            
+            // Create a download link
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `flight-schedule-${currentDate}.html`;
+            document.body.appendChild(a);
+            a.click();
+            
+            // Clean up
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 100);
+        }
+
+        function setupEventListeners() {
+            // Date navigation
+            document.getElementById('prev-day').addEventListener('click', () => {
+                navigateDate(-1);
+            });
+            
+            document.getElementById('next-day').addEventListener('click', () => {
+                navigateDate(1);
+            });
+            
+            // Close flight details
+            document.querySelector('.close-details').addEventListener('click', () => {
+                document.getElementById('flight-details').style.display = 'none';
+            });
+            
+            // Status modal events
+            document.getElementById('cancel-status').addEventListener('click', closeStatusModal);
+            document.getElementById('reset-this-flight').addEventListener('click', resetThisFlight);
+            document.getElementById('save-status').addEventListener('click', (e) => {
+                e.preventDefault();
+                saveStatusData();
+            });
+            
+            // ETD popup events
+            document.getElementById('cancel-etd').addEventListener('click', closeETDPopup);
+            document.getElementById('reset-flight-position').addEventListener('click', resetFlightPosition);
+            document.getElementById('save-etd').addEventListener('click', (e) => {
+                e.preventDefault();
+                saveETDData();
+            });
+            
+            // Reset times button
+            document.getElementById('reset-times').addEventListener('click', resetTimesForCurrentDate);
+            
+            // Save HTML button
+            document.getElementById('save-html').addEventListener('click', saveHTML);
+            
+            // Firebase buttons
+            document.getElementById('save-to-firebase').addEventListener('click', saveToFirebase);
+            document.getElementById('load-from-firebase').addEventListener('click', loadFromFirebase);
+            
+            // Close modals when clicking outside
+            document.getElementById('status-modal').addEventListener('click', (e) => {
+                if (e.target.id === 'status-modal') {
+                    closeStatusModal();
+                }
+            });
+            
+            document.getElementById('etd-popup').addEventListener('click', (e) => {
+                if (e.target.id === 'etd-popup') {
+                    closeETDPopup();
+                }
+            });
+        }
+
+        function navigateDate(days) {
+            const currentDateObj = new Date(currentDate);
+            currentDateObj.setDate(currentDateObj.getDate() + days);
+            currentDate = formatDate(currentDateObj);
+            
+            // Save current state
+            saveDataToStorage();
+            
+            // Update the display and re-render
+            updateDateDisplay();
+            createAircraftList();
+            renderFlightBars();
+        }
+
+        // Utility functions
+        function timeToMinutes(timeStr) {
+            if (!timeStr) return 0;
+            const [hours, minutes] = timeStr.split(':').map(Number);
+            return hours * 60 + minutes;
+        }
+
+        function minutesToTime(minutes) {
+            const hours = Math.floor(minutes / 60);
+            const mins = minutes % 60;
+            return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+        }
+
+        function formatDate(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+    </script>
+</body>
+</html>
